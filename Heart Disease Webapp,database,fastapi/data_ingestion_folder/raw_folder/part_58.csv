@@ -1,0 +1,6 @@
+age,sex,cp,trestbps,chol,fbs,restecg,thalach,exang,oldpeak,slope,ca,thal,target
+71,0,2,110,265,1,0,130,0,0.0,2,1,abnormal,1
+64,0,2,140,313,0,1,133,0,0.2,2,0,3,1
+71,0,1,160,302,0,1,162,0,0.4,2,2,abnormal,1
+58,0,2,120,340,0,1,172,0,0.0,2,0,abnormal,1
+40,1,0,152,223,0,1,181,0,0.0,2,0,3,0
