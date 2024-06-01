@@ -7,7 +7,6 @@ __locations = None
 __data_columns = None
 __model = None
 
-
 def get_estimated_price(location, sqft, bedrooms, bath):
     # Try to find the index of the specified location in the data columns.
     # If not found, loc_index is set to -1.
@@ -26,7 +25,15 @@ def get_estimated_price(location, sqft, bedrooms, bath):
         x[loc_index] = 1  # Set location index to 1 if the location is found.
 
     # Use the model to predict the price based on the input vector x, and round the result.
-    return round(__model.predict([x])[0], 2)
+    price_in_lakhs = round(__model.predict([x])[0], 2)
+    
+    # Conversion factor: 1 lakh = 100,000 INR, and 1 EUR = 90 INR
+    conversion_factor = 100000 / 90
+    price_in_euros = price_in_lakhs * conversion_factor
+
+    # Return the price in Euros
+    return round(price_in_euros, 0)
+
 
 
 def get_location_names():

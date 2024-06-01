@@ -40,7 +40,7 @@ function onClickedEstimatePrice() {
         }),
         success: function(data) {
             console.log(data.estimated_price);
-            estPrice.innerHTML = "<h2>" + data.estimated_price.toString() + " Lakh</h2>";
+            estPrice.innerHTML = "<h2>" + data.estimated_price.toString() + " euros </h2>";
         },
         error: function(error) {
             console.log("Error in estimating price:", error);
