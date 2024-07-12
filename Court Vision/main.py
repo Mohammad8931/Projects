@@ -1,73 +1,99 @@
-import math
 import cv2
 import cvzone
 from cvzone.ColorModule import ColorFinder
 import numpy as np
+import math
 
-# Initialize the Video
-cap = cv2.VideoCapture('Videos/vid (4).mp4')
+# Initialize video capture from a file
+video_capture = cv2.VideoCapture('Videos/vid (4).mp4')
 
-# Create the color Finder object
-myColorFinder = ColorFinder(False)
-hsvVals = {'hmin': 8, 'smin': 96, 'vmin': 115, 'hmax': 14, 'smax': 255, 'vmax': 255}
+# Initialize the color finder with HSV color values
+color_finder = ColorFinder(False)
+hsv_values = {'hmin': 8, 'smin': 124, 'vmin': 13, 'hmax': 24, 'smax': 255, 'vmax': 255}
 
-# Variables
-posListX, posListY = [], []
-xList = [item for item in range(0, 1300)]
-prediction = False
+# Lists to store the X and Y positions of the ball
+ball_positions_x = []
+ball_positions_y = []
+
+# List of X values for trajectory prediction
+trajectory_x = [x for x in range(0, 1300)]
+
+# Flags to control the start of processing and prediction
+start_processing = True
+is_prediction_valid = False
 
 while True:
-    # Grab the image
+    if start_processing:
+        if len(ball_positions_x) == 10:
+            start_processing = False
 
-    success, img = cap.read()
-    # img = cv2.imread("Ball.png")
-    img = img[0:900, :]
+        # Read a frame from the video
+        success, frame = video_capture.read()
 
-    # Find the Color Ball
-    imgColor, mask = myColorFinder.update(img, hsvVals)
-    # Find location of the Ball
-    imgContours, contours = cvzone.findContours(img, mask, minArea=500)
+        # Crop the frame to focus on the relevant area
+        frame = frame[0:900, :]
 
-    if contours:
-        posListX.append(contours[0]['center'][0])
-        posListY.append(contours[0]['center'][1])
+        # Create copies of the frame for different processing steps
+        frame_prediction = frame.copy()
+        frame_result = frame.copy()
 
-    if posListX:
-        # Polynomial Regression y = Ax^2 + Bx + C
-        # Find the Coefficients
-        A, B, C = np.polyfit(posListX, posListY, 2)
+        # Detect the ball based on the color values
+        frame_ball, mask = color_finder.update(frame, hsv_values)
+        frame_contours, contours = cvzone.findContours(frame, mask, 200)
 
-        for i, (posX, posY) in enumerate(zip(posListX, posListY)):
-            pos = (posX, posY)
-            cv2.circle(imgContours, pos, 10, (0, 255, 0), cv2.FILLED)
-            if i == 0:
-                cv2.line(imgContours, pos, pos, (0, 255, 0), 5)
+        # If a ball is detected, store its position
+        if contours:
+            ball_positions_x.append(contours[0]['center'][0])
+            ball_positions_y.append(contours[0]['center'][1])
+
+        # If we have detected positions, calculate the trajectory
+        if ball_positions_x:
+            if len(ball_positions_x) < 18:
+                # Fit a polynomial to the detected positions
+                coefficients = np.polyfit(ball_positions_x, ball_positions_y, 2)
+
+            # Draw the detected positions and the trajectory
+            for i, (posX, posY) in enumerate(zip(ball_positions_x, ball_positions_y)):
+                position = (posX, posY)
+                cv2.circle(frame_contours, position, 10, (0, 255, 0), cv2.FILLED)
+                cv2.circle(frame_result, position, 10, (0, 255, 0), cv2.FILLED)
+
+                if i == 0:
+                    cv2.line(frame_contours, position, position, (0, 255, 0), 2)
+                    cv2.line(frame_result, position, position, (0, 255, 0), 2)
+                else:
+                    cv2.line(frame_contours, (ball_positions_x[i - 1], ball_positions_y[i - 1]), position, (0, 255, 0), 2)
+                    cv2.line(frame_result, (ball_positions_x[i - 1], ball_positions_y[i - 1]), position, (0, 255, 0), 2)
+
+            # Predict the future positions based on the trajectory
+            for x in trajectory_x:
+                y = int(coefficients[0] * x ** 2 + coefficients[1] * x + coefficients[2])
+                cv2.circle(frame_prediction, (x, y), 2, (255, 0, 255), cv2.FILLED)
+                cv2.circle(frame_result, (x, y), 2, (255, 0, 255), cv2.FILLED)
+
+            # Predict whether the shot will be a basket
+            if len(ball_positions_x) < 10:
+                a, b, c = coefficients
+                c = c - 593
+                x_intercept = int((-b - math.sqrt(b ** 2 - (4 * a * c))) / (2 * a))
+                is_prediction_valid = 300 < x_intercept < 430
+
+            # Display the prediction result
+            if is_prediction_valid:
+                cvzone.putTextRect(frame_result, "Basket", (50, 150), colorR=(0, 200, 0), scale=5, thickness=10, offset=20)
             else:
-                cv2.line(imgContours, pos, (posListX[i - 1], posListY[i - 1]), (0, 255, 0), 5)
+                cvzone.putTextRect(frame_result, "No Basket", (50, 150), colorR=(0, 0, 200), scale=5, thickness=10, offset=20)
 
-        for x in xList:
-            y = int(A * x ** 2 + B * x + C)
-            cv2.circle(imgContours, (x, y), 2, (255, 0, 255), cv2.FILLED)
+        # Draw the basket line
+        cv2.line(frame_contours, (330, 593), (430, 593), (255, 0, 255), 10)
 
-        if len(posListX) < 10:
-            # Prediction
-            # X values 330 to 430  Y 590
-            a = A
-            b = B
-            c = C - 590
+        # Resize the result frame for display
+        frame_result = cv2.resize(frame_result, (0, 0), None, 0.7, 0.7)
 
-            x = int((-b - math.sqrt(b ** 2 - (4 * a * c))) / (2 * a))
-            prediction = 330 < x < 430
+        # Display the result frame
+        cv2.imshow("Basketball Shot Predictor", frame_result)
 
-        if prediction:
-            cvzone.putTextRect(imgContours, "Basket", (50, 150),
-                               scale=5, thickness=5, colorR=(0, 200, 0), offset=20)
-        else:
-            cvzone.putTextRect(imgContours, "No Basket", (50, 150),
-                               scale=5, thickness=5, colorR=(0, 0, 200), offset=20)
-
-    # Display
-    imgContours = cv2.resize(imgContours, (0, 0), None, 0.7, 0.7)
-    # cv2.imshow("Image", img)
-    cv2.imshow("ImageColor", imgContours)
-    cv2.waitKey(100)
+    # Wait for the 's' key to restart processing
+    key = cv2.waitKey(100)
+    if key == ord("s"):
+        start_processing = True
