@@ -5,7 +5,7 @@ import numpy as np
 import math
 
 # Initialize video capture from a file
-video_capture = cv2.VideoCapture('Videos/vid (4).mp4')
+video_capture = cv2.VideoCapture('Videos/vid (1).mp4')
 
 # Initialize the color finder with HSV color values
 color_finder = ColorFinder(False)
@@ -95,5 +95,5 @@ while True:
 
     # Wait for the 's' key to restart processing
     key = cv2.waitKey(100)
-    if key == ord("s"):
+    if key == ord("a"):
         start_processing = True
