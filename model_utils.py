@@ -60,9 +60,30 @@ def product_diversity(df, cutoff_date='2019-01-31'):
     
     return df
 
+def avg_days_between_tx(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    data = data[data['date'] <= cutoff]
+
+    # Sort and compute time gaps
+    data = data.sort_values(['customer_id', 'date'])
+    data['days_since_prev'] = data.groupby('customer_id')['date'].diff().dt.days
+
+    # Average gap between transactions
+    avg_gap = data.groupby('customer_id')['days_since_prev'].mean().reset_index()
+    avg_gap.columns = ['customer_id', 'avg_days_between_tx']
+
+    # Merge result back
+    df = df.merge(avg_gap, on='customer_id', how='left')
+
+    return df
+
 
 df = pd.read_csv('dataset/cleaned_dataset.csv')
 df = recency(df)
 df = count_transactions(df)
 df = product_diversity(df)
+df = avg_days_between_tx(df) 
 df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
