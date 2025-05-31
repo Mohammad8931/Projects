@@ -42,9 +42,27 @@ def count_transactions(df, cutoff_date='2019-01-31', windows=[30, 60, 90]):
 
     return df
 
+def product_diversity(df, cutoff_date='2019-01-31'):
+    
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+    
+    # Only keep transactions before cutoff date
+    data = data[data['date'] <= cutoff]
+    
+    # Count unique products per customer
+    diversity = data.groupby('customer_id')['product_id'].nunique().reset_index()
+    diversity.columns = ['customer_id', 'num_unique_products']
+    
+    # Merge diversity counts into original dataset
+    df = df.merge(diversity, on='customer_id', how='left')
+    
+    return df
 
 
 df = pd.read_csv('dataset/cleaned_dataset.csv')
 df = recency(df)
 df = count_transactions(df)
+df = product_diversity(df)
 df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
