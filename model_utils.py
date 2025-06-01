@@ -87,10 +87,21 @@ def avg_days_between_tx(df, cutoff_date='2019-01-31'):
     avg_gap = data.groupby('customer_id')['days_since_prev'].mean().reset_index()
     avg_gap.columns = ['customer_id', 'avg_days_between_tx']
 
+    # Some customers only made one purchase before the cutoff, so there's no previous transaction to compute an average gap.
+    # For those users, we estimate the gap as the number of days between their only transaction and the cutoff date.
+    single_tx_customers = avg_gap[avg_gap['avg_days_between_tx'].isna()]['customer_id']
+    for customer_id in single_tx_customers:
+        tx_date = data[data['customer_id'] == customer_id]['date'].iloc[0]
+        days_since = (cutoff - tx_date).days
+        avg_gap.loc[avg_gap['customer_id'] == customer_id, 'avg_days_between_tx'] = days_since
+        
     # Merge result back
     df = df.merge(avg_gap, on='customer_id', how='left')
 
     return df
+
+
+
 
 def average_monthly_transactions(df, cutoff_date='2019-01-31'):
     data = df.copy()
