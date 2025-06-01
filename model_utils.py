@@ -80,10 +80,47 @@ def avg_days_between_tx(df, cutoff_date='2019-01-31'):
 
     return df
 
+def average_monthly_transactions(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    # Only include transactions before the cutoff date
+    data = data[data['date'] <= cutoff]
+
+    # Total transactions per customer
+    txn_counts = data['customer_id'].value_counts().rename('total_txns')
+
+    # First and last transaction dates
+    first_txn = data.groupby('customer_id')['date'].min()
+    last_txn = data.groupby('customer_id')['date'].max()
+
+    customer_freq = pd.DataFrame({
+        'total_txns': txn_counts,
+        'first_date': first_txn,
+        'last_date': last_txn
+    })
+
+    # Months active (at least 1 to avoid division by zero)
+    customer_freq['months_active'] = ((customer_freq['last_date'] - customer_freq['first_date']) / pd.Timedelta(days=30)).clip(lower=1)
+    # Average monthly transactions
+    customer_freq['avg_monthly_txns'] = customer_freq['total_txns'] / customer_freq['months_active']
+    # Merge with original dataframe
+    df = df.merge(customer_freq[['avg_monthly_txns']], left_on='customer_id', right_index=True, how='left')
+
+    return df
+
+
+
+
+
+
 
 df = pd.read_csv('dataset/cleaned_dataset.csv')
 df = recency(df)
 df = count_transactions(df)
 df = product_diversity(df)
 df = avg_days_between_tx(df) 
+df = average_monthly_transactions(df)
 df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
+
