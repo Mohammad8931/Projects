@@ -21,6 +21,9 @@ def recency(df, cutoff_date='2019-01-31'):
     )
     return df
 
+
+
+
 def count_transactions(df, cutoff_date='2019-01-31', windows=[30, 60, 90]):
     data = df.copy()
     data['date'] = pd.to_datetime(data['date'],format = 'mixed', utc=True)
@@ -39,8 +42,17 @@ def count_transactions(df, cutoff_date='2019-01-31', windows=[30, 60, 90]):
 
     # Merge final results into the original dataset
     df = df.merge(result, on='customer_id', how='left')
+    
+        
+    # Some customers like 9467115 had NaN values in tx_count_30d/60d/90d.
+    # After checking, this happened because they had no transactions in those time windows before the cutoff date.
+    # To fix this, I replaced NaNs with 0 — it just means the customer was inactive during that time,
+    # which is useful info for the model.
+    for days in windows:
+        df[f'tx_count_{days}d'] = df[f'tx_count_{days}d'].fillna(0).astype(int)
 
     return df
+
 
 def product_diversity(df, cutoff_date='2019-01-31'):
     
