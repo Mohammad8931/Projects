@@ -162,6 +162,34 @@ df = avg_days_between_tx(df)
 df = average_monthly_transactions(df)
 df = add_target(df)
 # df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
-data = reformat_df(df)
-data.to_csv('dataset/preprocessed_dataset.csv', index=False)
+df = reformat_df(df)
+
+
+
+
+
+
+
+# In the preprocessed dataset, we are still having some null values
+# These belong to customers who had no transactions before the cutoff date — labeled as 'Inactive'.
+# Since they have no historical behavior, key features like recency and transaction counts are missing (null).
+# I calculated their percentage: they represent only 9.2% of all customers.
+# I decided to remove them from the dataset because:
+#   - We can't learn anything meaningful from their past behavior (it doesn’t exist).
+#   - Including them would add noise and hurt the model’s ability to generalize.
+
+def inactive_users(df):
+    total = len(df)
+    inactive = df[df['activity_level'] == 'Inactive'].shape[0]
+    percent = (inactive / total) * 100
+    print(f"{inactive} inactive customers ({percent:.1f}%) out of {total} total.")
+
+print(inactive_users(df))
+
+
+# delete inactive users 
+df = df[df['activity_level'] != 'Inactive']
+
+
+df.to_csv('dataset/preprocessed_dataset.csv', index=False)
 
