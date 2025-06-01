@@ -128,8 +128,16 @@ def add_target(df, cutoff_date='2019-01-31', prediction_window=90):
 
     return df
 
+def reformat_df(df):
+    data = df.copy()
+    columns_to_drop = [
+    'product_id', 'date', 'year', 'month', 'quarter',
+    'year_month', 'year_quarter'
+]
+    data = data.drop(columns=columns_to_drop)
+    data = data.drop_duplicates()
 
-
+    return data
 
 
 
@@ -141,5 +149,7 @@ df = product_diversity(df)
 df = avg_days_between_tx(df) 
 df = average_monthly_transactions(df)
 df = add_target(df)
-df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
+# df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
+data = reformat_df(df)
+data.to_csv('dataset/preprocessed_dataset.csv', index=False)
 
