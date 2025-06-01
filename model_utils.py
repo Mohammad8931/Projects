@@ -152,6 +152,16 @@ def reformat_df(df):
     return data
 
 
+def encode_categorical_features(df):
+    data = df.copy()
+    # due to the type of categorical data that we have(ordinal data), i preferred label encoding over one hot encoding
+    activity_mapping = {'Low': 0, 'Medium': 1, 'High': 2}
+    data['activity_level'] = data['activity_level'].map(activity_mapping)
+    
+    return data
+
+
+
 
 
 df = pd.read_csv('dataset/cleaned_dataset.csv')
@@ -163,10 +173,6 @@ df = average_monthly_transactions(df)
 df = add_target(df)
 # df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
 df = reformat_df(df)
-
-
-
-
 
 
 
@@ -186,10 +192,11 @@ def inactive_users(df):
 
 print(inactive_users(df))
 
-
 # delete inactive users 
 df = df[df['activity_level'] != 'Inactive']
 
+
+df = encode_categorical_features(df)
 
 df.to_csv('dataset/preprocessed_dataset.csv', index=False)
 
