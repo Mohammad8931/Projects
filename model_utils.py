@@ -110,6 +110,24 @@ def average_monthly_transactions(df, cutoff_date='2019-01-31'):
 
     return df
 
+def add_target(df, cutoff_date='2019-01-31', prediction_window=90):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+    end_date = cutoff + pd.Timedelta(days=prediction_window)
+
+    # Filter future transactions in the prediction window
+    future_tx = data[(data['date'] > cutoff) & (data['date'] <= end_date)]
+
+    # Count transactions per customer in that window
+    target = future_tx.groupby('customer_id').size().reset_index(name='target')
+
+    # Merge target into original dataset
+    df = df.merge(target, on='customer_id', how='left')
+    df['target'] = df['target'].fillna(0).astype(int)
+
+    return df
+
 
 
 
@@ -122,5 +140,6 @@ df = count_transactions(df)
 df = product_diversity(df)
 df = avg_days_between_tx(df) 
 df = average_monthly_transactions(df)
+df = add_target(df)
 df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
 
