@@ -102,6 +102,37 @@ def avg_days_between_tx(df, cutoff_date='2019-01-31'):
 
 
 
+def assign_customer_tier(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    # Only use transactions before cutoff date
+    data = data[data['date'] <= cutoff]
+
+    # Count number of transactions per customer
+    tx_counts = data['customer_id'].value_counts().reset_index()
+    tx_counts.columns = ['customer_id', 'transaction_count']
+
+    # Define activity thresholds
+    high_threshold = tx_counts['transaction_count'].quantile(0.75)
+    low_threshold = tx_counts['transaction_count'].quantile(0.25)
+
+    def get_tier(txn):
+        if txn >= high_threshold:
+            return 'High'
+        elif txn >= low_threshold:
+            return 'Medium'
+        else:
+            return 'Low'
+    tx_counts['activity_level'] = tx_counts['transaction_count'].apply(get_tier)
+
+    # Merge into original dataframe
+    df = df.merge(tx_counts[['customer_id', 'activity_level']], on='customer_id', how='left')
+    df['activity_level'] = df['activity_level'].fillna('Inactive')
+    return df
+
+
 
 def average_monthly_transactions(df, cutoff_date='2019-01-31'):
     data = df.copy()
@@ -132,6 +163,109 @@ def average_monthly_transactions(df, cutoff_date='2019-01-31'):
     df = df.merge(customer_freq[['avg_monthly_txns']], left_on='customer_id', right_index=True, how='left')
 
     return df
+
+def tx_trend_60(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    # Define two 30-day windows
+    recent_start = cutoff - pd.Timedelta(days=30)
+    prev_start = cutoff - pd.Timedelta(days=60)
+    
+    recent_tx = data[(data['date'] > recent_start) & (data['date'] <= cutoff)]
+    prev_tx = data[(data['date'] > prev_start) & (data['date'] <= recent_start)]
+    
+    recent_count = recent_tx.groupby('customer_id').size().reset_index(name='tx_last_30')
+    prev_count = prev_tx.groupby('customer_id').size().reset_index(name='tx_prev_30')
+    
+    trend = pd.merge(recent_count, prev_count, on='customer_id', how='outer').fillna(0)
+    trend['tx_trend_60'] = trend['tx_last_30'] - trend['tx_prev_30']
+    
+    df = df.merge(trend[['customer_id', 'tx_trend_60']], on='customer_id', how='left')
+    df['tx_trend_60'] = df['tx_trend_60'].fillna(0).astype(int)
+    
+    return df
+
+def tx_trend_90(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    # Last 30 days
+    recent_start = cutoff - pd.Timedelta(days=30)
+    prev_start = cutoff - pd.Timedelta(days=90)
+
+    recent_tx = data[(data['date'] > recent_start) & (data['date'] <= cutoff)]
+    prev_tx = data[(data['date'] > prev_start) & (data['date'] <= recent_start)]
+
+    recent_count = recent_tx.groupby('customer_id').size().reset_index(name='tx_last_30')
+    prev_count = prev_tx.groupby('customer_id').size().reset_index(name='tx_prev_60')
+
+    trend = pd.merge(recent_count, prev_count, on='customer_id', how='outer').fillna(0)
+    trend['tx_trend_90'] = trend['tx_last_30'] - (trend['tx_prev_60'] / 2)  # normalize per 30d
+
+    df = df.merge(trend[['customer_id', 'tx_trend_90']], on='customer_id', how='left')
+    df['tx_trend_90'] = df['tx_trend_90'].fillna(0)
+    
+    return df
+
+def recent_activity_score(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    data = data[data['date'] <= cutoff]
+    data['days_ago'] = (cutoff - data['date']).dt.days
+
+    # Score: recent = high score (e.g., 1 / (1 + days_ago))
+    data['recency_score'] = 1 / (1 + data['days_ago'])
+
+    scores = data.groupby('customer_id')['recency_score'].sum().reset_index()
+    scores.columns = ['customer_id', 'recent_activity_score']
+
+    df = df.merge(scores, on='customer_id', how='left')
+    df['recent_activity_score'] = df['recent_activity_score'].fillna(0)
+
+    return df
+
+def product_ratios(df, cutoff_date='2019-01-31'):
+    data = df.copy()
+    data['date'] = pd.to_datetime(data['date'], format='mixed', utc=True)
+    cutoff = pd.to_datetime(cutoff_date, utc=True)
+
+    # Only keep transactions before cutoff
+    data = data[data['date'] <= cutoff]
+
+    # Total transactions per customer
+    total_tx = data.groupby('customer_id').size().reset_index(name='total_txns')
+
+    # Number of unique products
+    unique_products = data.groupby('customer_id')['product_id'].nunique().reset_index(name='num_unique_products')
+
+    # Merge both
+    merged = pd.merge(total_tx, unique_products, on='customer_id', how='outer')
+
+    # Compute diversity ratio
+    merged['product_diversity_ratio'] = merged['num_unique_products'] / merged['total_txns'].clip(lower=1)
+
+    # Favorite product count per customer
+    fav_counts = data.groupby(['customer_id', 'product_id']).size().reset_index(name='count')
+    fav_max = fav_counts.sort_values(['customer_id', 'count'], ascending=[True, False]) \
+                        .groupby('customer_id').first().reset_index()
+    fav_max = fav_max[['customer_id', 'count']].rename(columns={'count': 'fav_product_count'})
+
+    # Merge favorite count and compute ratio
+    merged = pd.merge(merged, fav_max, on='customer_id', how='left')
+    merged['favorite_product_ratio'] = merged['fav_product_count'] / merged['total_txns'].clip(lower=1)
+
+    # Merge final results into main df
+    df = df.merge(merged[['customer_id', 'product_diversity_ratio', 'favorite_product_ratio']],
+                  on='customer_id', how='left')
+
+    return df
+
+
 
 def add_target(df, cutoff_date='2019-01-31', prediction_window=90):
     data = df.copy()
@@ -171,43 +305,35 @@ def encode_categorical_features(df):
     
     return data
 
+def generate_features(df, cutoff_date):
+    df = recency(df, cutoff_date)
+    df = count_transactions(df, cutoff_date)
+    df = product_diversity(df, cutoff_date)
+    df = product_ratios(df, cutoff_date)
+    df = avg_days_between_tx(df, cutoff_date)
+    df = average_monthly_transactions(df, cutoff_date)
+    df = assign_customer_tier(df, cutoff_date)
+    df = tx_trend_60(df, cutoff_date)
+    df = tx_trend_90(df, cutoff_date)
+    df = recent_activity_score(df, cutoff_date)
+    df = add_target(df, cutoff_date)
+    df = df[df['activity_level'] != 'Inactive']
+    df = encode_categorical_features(df)
+    df = reformat_df(df)
+    return df
+
+def build_dataset(raw_df, cutoffs):
+    return pd.concat([generate_features(raw_df.copy(), c) for c in cutoffs], ignore_index=True)
 
 
+#Since the dataset is small, i will do some data augmentation, by using different cuttoffs before 2019, and add them to the dataset
+cutoffs = [
+'2017-11-30','2018-11-30'
+]
 
+raw_df = pd.read_csv('dataset/cleaned_dataset.csv')
+train = build_dataset(raw_df, cutoffs)
+train.to_csv('dataset/train_data.csv', index=False)
 
-df = pd.read_csv('dataset/cleaned_dataset.csv')
-df = recency(df)
-df = count_transactions(df)
-df = product_diversity(df)
-df = avg_days_between_tx(df) 
-df = average_monthly_transactions(df)
-df = add_target(df)
-# df.to_csv('dataset/feature_engineered_dataset.csv', index=False)
-df = reformat_df(df)
-
-
-
-# In the preprocessed dataset, we are still having some null values
-# These belong to customers who had no transactions before the cutoff date — labeled as 'Inactive'.
-# Since they have no historical behavior, key features like recency and transaction counts are missing (null).
-# I calculated their percentage: they represent only 9.2% of all customers.
-# I decided to remove them from the dataset because:
-#   - We can't learn anything meaningful from their past behavior (it doesn’t exist).
-#   - Including them would add noise and hurt the model’s ability to generalize.
-
-def inactive_users(df):
-    total = len(df)
-    inactive = df[df['activity_level'] == 'Inactive'].shape[0]
-    percent = (inactive / total) * 100
-    print(f"{inactive} inactive customers ({percent:.1f}%) out of {total} total.")
-
-print(inactive_users(df))
-
-# delete inactive users 
-df = df[df['activity_level'] != 'Inactive']
-
-
-df = encode_categorical_features(df)
-
-df.to_csv('dataset/preprocessed_dataset.csv', index=False)
-
+test = generate_features(raw_df.copy(), '2019-01-31')
+test.to_csv('dataset/test_data.csv', index=False)
