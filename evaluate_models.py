@@ -1,6 +1,8 @@
 import pandas as pd
 import joblib
 from sklearn.metrics import r2_score, root_mean_squared_error
+from database_utils import save_predictions
+
 
 
 model = joblib.load('trained_models/best_model.joblib')
@@ -34,3 +36,6 @@ results = pd.DataFrame({
 })
 results.to_csv('predictions.csv', index=False)
 print("\nPredictions saved to 'predictions.csv'")
+
+save_predictions(results)
+print("predictions saved to database")
