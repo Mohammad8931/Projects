@@ -327,10 +327,10 @@ def build_dataset(raw_df, cutoffs):
 
 
 
-Cuttoff_date = '2019-01-31'
+cuttoff_date = '2019-01-31'
 
 #Since the dataset is small, i will do some data augmentation, by using different cuttoffs before 2019, and add them to the dataset
-main_date = pd.to_datetime(Cuttoff_date)
+main_date = pd.to_datetime(cuttoff_date)
 
 # We use 2 training periods from 2018 and 2017 to create more training examples
 # These dates are far enough from our test period (Feb-May 2019) to avoid data leakage
@@ -346,5 +346,5 @@ train = build_dataset(raw_df, cutoffs)
 train.to_csv('dataset/train_data.csv', index=False)
 
 # we are trying to predict the number of transactions, 3 months after the  cuttoff_date ---> (for march, february and april 2019
-test = generate_features(raw_df.copy(), Cuttoff_date)
+test = generate_features(raw_df.copy(), cuttoff_date)
 test.to_csv('dataset/test_data.csv', index=False)
