@@ -18,6 +18,7 @@ def save_predictions(df):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS predictions_db (
             customer_id INT,
+            cuttoff_date DATE,
             predicted INT,
             actual INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -26,8 +27,8 @@ def save_predictions(df):
     
     for _, row in df.iterrows():
         cursor.execute(
-            "INSERT INTO predictions_db (customer_id, predicted, actual) VALUES (%s, %s, %s)",
-            (str(row['customer_id']), int(row['predicted'].item()), int(row['actual'].item()))
+            "INSERT INTO predictions_db (customer_id, cuttoff_date, predicted, actual) VALUES (%s, %s, %s, %s)",
+            (str(row['customer_id']), row['cuttoff_date'], int(row['predicted']), int(row['actual']))
         )
     conn.commit()
     conn.close()

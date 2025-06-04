@@ -2,6 +2,8 @@ import pandas as pd
 import joblib
 from sklearn.metrics import r2_score, root_mean_squared_error
 from database_utils import save_predictions
+from model_utils import cuttoff_date
+
 
 
 
@@ -31,6 +33,7 @@ print(f"RMSE: {rmse:.4f}")
 # Save predictions for review
 results = pd.DataFrame({
     'customer_id': customer_ids,
+    'cuttoff_date': cuttoff_date,
     'actual': y_test,
     'predicted': y_pred
 })
