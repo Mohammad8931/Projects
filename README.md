@@ -177,8 +177,8 @@ Building this taught me a lot about customer behavior modeling:
 - Add model performance monitoring
 
 ## Some ideas I'd love to explore:
-  - Visual components (charts showing customer segments)
   - File upload functionality
+  - Live prediction 
 
 
 
